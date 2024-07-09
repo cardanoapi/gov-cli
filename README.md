@@ -2,6 +2,11 @@ GOV CLI
 ================
 Cli wrapper on top of cardano-cli for governance actions on cardano blockchain
 
+#### Installation
+```
+pip install gov-cli
+```
+
 ### Features on top of cli
 - Key generation auto loading of required keys when making transactions
 - Automatic transaction balancing
