@@ -1,4 +1,16 @@
 #!/usr/bin/env python3
 from gov_cli import main
-if __name__ == '__main__':
+from gov_cli.gov_cli import run_cli_command
+import sys
+
+def cli_main():
+    if len(sys.argv)==2:
+        if sys.argv[1]=='publish':
+            run_cli_command(['python','setup.py', 'sdist', 'bdist_wheel'])
+            result=run_cli_command(['twine','upload', 'dist/*'])
+            print(result)
+            return
     main() 
+    
+if __name__ == '__main__':
+    cli_main()
