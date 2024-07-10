@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import shutil
 import subprocess
-from subprocess import CompletedProcess
+from subprocess import CalledProcessError, CompletedProcess
 import os
 import sys
 from typing import List, Optional
@@ -456,8 +456,10 @@ class CardanoCLI:
         return utxos
 
     def query_utxos_json(self, wallet: Wallet):
-        utxos = self.cardano_cli("query", "utxo", ["--address", wallet.address ,"--out-file","utxo.json"], include_network=True, include_socket=True,)
-        with open("utxo.json") as f:
+        file_path = os.path.join(KEYS_DIR, 'utxo.json')
+        utxos = self.cardano_cli("query", "utxo", ["--address", wallet.address ,"--out-file",file_path], include_network=True, include_socket=True,)
+        
+        with open(file_path) as f:
             utxos=json.load(f)
         return utxos
 
@@ -495,7 +497,14 @@ def help():
     """
     print(help_txt)
     sys.exit(1)
+    
 def main():
+    try: 
+        command_handler()
+    except CalledProcessError as _:
+        pass
+        
+def command_handler():
     if len(sys.argv) < 2:
         help()
 
@@ -628,7 +637,7 @@ def main():
         elif len(sys.argv) == 3:
             address = sys.argv[2]
         else:
-            print("Usage: python cardano_cli.py balance [address]")
+            print("Usage:  gov-cli balance [address]")
             sys.exit(1)
 
         # Query UTXOs for the specified address
@@ -637,11 +646,15 @@ def main():
         result=cli.query_utxos(wallet)
         print(result)
     elif command == "transfer":
-        if len(sys.argv) != 5:
-            print("Usage: python cardano_cli.py transfer <address> <value>")
+        if len(sys.argv) != 4:
+            print("Usage: gov-cli transfer <address> <value>")
             sys.exit(1)
+        wallet=WalletStore(KEYS_DIR).load_wallet()
         address = sys.argv[2]
         amount = sys.argv[3]
+        tx=cli.build_and_submit(wallet,'transfer',['--tx-out',address+"+"+amount])
+        print("Tx submitted :",tx)
+        
     elif command == "tip":
         result = cli.cardano_cli("query","tip",[],include_network=True,include_socket=True)
         print(result)
@@ -651,7 +664,7 @@ def main():
             shutil.copyfile(sys.argv[3], guardrail_script_file)
             print("Saved file :",guardrail_script_file)
         else:           
-            print("Usage: python guardrail load <guardrail script file>")
+            print("Usage: gov-cli guardrail load <guardrail script file>")
     elif command == 'tx':
         p2 = sys.argv[2]
         if p2 =='help':
