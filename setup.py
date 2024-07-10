@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="gov-cli",
-    version="0.1",
+    version="0.2",
     packages=find_packages(),
     install_requires=[
         # List your dependencies here, e.g.:
@@ -10,7 +10,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'gov-cli = gov_cli.__main__:main',
+            'gov-cli = gov_cli:main',
         ],
     },
     author="Sudip Bhattarai",

@@ -7,13 +7,13 @@ sidebar_position: 1
 
 This command-line utility, `gov-cli`, provides a set of functionalities to work with cardano keys and perform governance related actions.
 
-## Prerequisites
+#### Prerequisites
 
 - Python 3 or higher
 - Cardano CLI in path
 - A running Cardano node
 
-## Environment Variables
+#### Environment Variables
 
 - `CARDANO_NODE_SOCKET_PATH` : Node socket path to be used by cardano-cli
 - `NETWORK` : `mainnet|preview|preprod|sancho|1|2|4|42` : Network magic or some common names

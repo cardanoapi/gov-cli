@@ -465,11 +465,39 @@ class CardanoCLI:
     def get_tx_id(self,tx_file):
         return self.cardano_cli("transaction","txid",["--tx-file",tx_file])
 
+def help():
+    help_txt="""\
+  Usage:
+  
+     gov-cli <command> [*options]
+  
+  Env variables:
 
+    CARDANO_NODE_SOCKET_PATH=<node-socket-path location>
+    NETWORK=[mainnet|preprod|previewsancho|1|2|4|42]     
+
+  Available commands:
+  
+    ls         -> list proposed gov-actions
+    tip        -> show blockchain tip 
+    wallet     -> show wallet info
+    balance    -> print wallet balance
+    
+    gen [wallet|drep|cc]
+    guardrail load  <gurdrail-script-file-path>
+    
+    register  <stake|drep|cc>
+    delegate  <abstain|no-confidence|self|<drep_id>>
+    propose  <proposal_type>  [*proposal-related_cli_args]
+    vote  <drep|cc>  <gov-action-tx#index>  [yes|no]
+    
+    tx [script] [*cli-args]
+    """
+    print(help_txt)
+    sys.exit(1)
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python cardano_cli.py <command> [options]")
-        sys.exit(1)
+        help()
 
     command = sys.argv[1]
     cli = CardanoCLI(network=NETWORK, socket_path=CARDANO_NODE_SOCKET_PATH)
@@ -637,8 +665,4 @@ def main():
             print('Tx Submitted :',tx)
             
     else:
-        print("Unknown command")
-        
-
-if __name__ == "__main__":
-    main()
+        help()
