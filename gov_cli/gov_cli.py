@@ -489,7 +489,7 @@ def help():
     register  <stake|drep|cc>
     delegate  <abstain|no-confidence|self|<drep_id>>
     propose  <proposal_type>  [*proposal-related_cli_args]
-    vote  <drep|cc>  <gov-action-tx#index>  [yes|no]
+    vote  <drep|cc>  <gov-action-tx#index>  [yes|no|abstain]
     
     tx [script] [*cli-args]
     """

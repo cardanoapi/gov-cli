@@ -1,5 +1,5 @@
 .cluster/
-.dist/
+/dist/
 venv/
 *.egg-info
 *.whl
