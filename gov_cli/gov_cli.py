@@ -151,7 +151,7 @@ class WalletStore:
         cli.cardano_cli_conway("governance","committee",[
             "create-hot-key-authorization-certificate",
             "--cold-verification-key-file",cold_vkey,
-            "--hot-key-file", hot_vkey,
+            "--hot-verification-key-file", hot_vkey,
             "--out-file",authorization_cert
         ])
         return (Key(hot_skey,hot_vkey,cc_id),Key(cold_skey,cold_vkey,authorization_cert))
