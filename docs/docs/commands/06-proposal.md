@@ -84,7 +84,7 @@ You can submit a proposal to add them as new CC members with an expiration epoch
 
 Create the governance action proposal:
 ```bash
-cardano-cli propose update-committee \
+gov-cli propose update-committee \
   --anchor-url https://raw.githubusercontent.com/Ryun1/metadata/main/cip108/treasury-withdrawal.jsonld \
   --anchor-data-hash 931f1d8cdfdc82050bd2baadfe384df8bf99b00e36cb12bfb8795beab3ac7fe5 \
   --add-cc-cold-verification-key-hash 89181f26b47c3d3b6b127df163b15b74b45bba7c3b7a1d185c05c2de \
