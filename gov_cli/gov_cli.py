@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from ctypes import Array
 import shutil
 import subprocess
 from subprocess import CalledProcessError, CompletedProcess
@@ -8,12 +9,15 @@ from typing import List, Optional
 import json
 
 HOME=os.environ.get("HOME","/root")
+log_cli= 'LOG_CLI' in os.environ and os.environ['LOG_CLI'].lower() not in ('no','off','false','0')
 # Define paths
 KEYS_DIR = os.environ.get("CARDANO_KEYS_DIR",os.path.join(HOME,".cardano","keys"))
 NETWORK = "--testnet-magic=4"
 CARDANO_NODE_SOCKET_PATH=os.environ.get("CARDANO_NODE_SOCKET_PATH",os.path.join(HOME,'.cardano','testnet','node.socket')).strip()
-if not os.path.exists(KEYS_DIR):
-    os.makedirs(KEYS_DIR)
+TEMP_DIR= os.path.join(KEYS_DIR,'tmp')
+if not os.path.exists(TEMP_DIR):
+    os.makedirs(TEMP_DIR)
+
 if(os.environ.get("NETWORK")):
     NETWORK = os.environ.get("NETWORK").strip()
 
@@ -25,7 +29,7 @@ if(os.environ.get("NETWORK")):
     except ValueError:
         if NETWORK == 'mainnet':
             NETWORK = "--mainnet"
-        elif NETWORK == 'snacho' or NETWORK == 'sanchonet':
+        elif NETWORK == 'sancho' or NETWORK == 'sanchonet':
             NETWORK="--testnet-magic=4"
         elif NETWORK == 'preview':
             NETWORK="--testnet-magic=2"
@@ -39,7 +43,6 @@ class SubmitResult:
     def __init__(self,process,txid):
         self.process:CompletedProcess=process
         self.txid:str=txid
-log_cli= 'LOG_CLI' in os.environ and os.environ['LOG_CLI'].lower() not in ('no','off','false','0')
 # Utility function to run cardano-cli commands
 def run_cli_command(command: List[str],raise_error=True):
     if log_cli:
@@ -80,6 +83,8 @@ class WalletStore:
         stake_vkey = os.path.join(self.keys_dir, "stake.vkey")
         stake_skey = os.path.join(self.keys_dir, "stake.skey")
         payment_addr = os.path.join(self.keys_dir, "payment.addr")
+        check_if_file_exists(payment_vkey,payment_skey,stake_vkey,stake_skey,payment_addr)
+
         
         # Generate keys
         cli.cardano_cli( "address", "key-gen", ["--verification-key-file", payment_vkey, "--signing-key-file", payment_skey])
@@ -98,6 +103,7 @@ class WalletStore:
         drep_vkey = os.path.join(self.keys_dir, "drep.vkey")
         drep_skey = os.path.join(self.keys_dir, "drep.skey")
         drep_id = os.path.join(self.keys_dir, "drep.id.hex.txt")
+        check_if_file_exists(drep_vkey,drep_skey,drep_id)
         
         cli.cardano_cli_conway("governance", "drep",["key-gen", "--verification-key-file", drep_vkey, "--signing-key-file", drep_skey])
         cli.cardano_cli_conway("governance", "drep", ["id","--drep-verification-key-file",drep_vkey,"--out-file",drep_id,"--output-format","hex"])
@@ -126,7 +132,7 @@ class WalletStore:
         hot_vkey = self.file_path("cc-hot.vkey")
         hot_skey = self.file_path("cc-hot.skey")
         authorization_cert=self.file_path("cc-hot-key-authorization.cert")
-        
+        check_if_file_exists(cold_vkey,cold_skey,hot_vkey,hot_skey,cold_key_hash,authorization_cert)
 
         cli.cardano_cli_conway("governance","committee",[
             "key-gen-cold",
@@ -206,7 +212,7 @@ class CardanoCLI:
             commands.extend(["--tx-in-collateral",list(utxos.keys())[0]])
         
         # Build the transaction
-        tx_body_file = os.path.join(KEYS_DIR, tx_name+"_tx.raw")
+        tx_body_file = os.path.join(TEMP_DIR, tx_name+"_tx.raw")
 
 
         self.cardano_cli_conway("transaction", "build", 
@@ -216,7 +222,7 @@ class CardanoCLI:
         
     def build_and_submit(self,wallet:Wallet,tx_name:str,commands:List[str],raise_error=True,extra_keys=[],add_collateral=False):
 
-        signed_tx_file = os.path.join(KEYS_DIR, tx_name+"_signed_tx.json")
+        signed_tx_file = os.path.join(TEMP_DIR, tx_name+"_signed_tx.json")
 
         tx_body_file=self.build_tx(wallet,tx_name,commands,add_collateral) 
         return self.sign_and_submit(wallet,tx_body_file,signed_tx_file,raise_error=raise_error,extra_keys=extra_keys)
@@ -240,7 +246,7 @@ class CardanoCLI:
     def propose(self,wallet:Wallet,args):
         self.load_gov_state()
         proposal_type=args[0] if len (args) >0 else ''
-        proposal_file=proposal_type+".proposal"
+        proposal_file=os.path.join(TEMP_DIR,proposal_type+".proposal")
         req_prev=["create-no-confidence","update-committee","create-constitution","create-protocol-parameters-update","create-hardfork"]
         no_prev=["create-treasury-withdrawal","create-info"]
         require_guardrail=['create-treasury-withdrawal',"create-protocol-parameters-update"]
@@ -301,7 +307,7 @@ class CardanoCLI:
         
 
     def register_stake(self, wallet: Wallet):
-        stake_cert = os.path.join(KEYS_DIR, "stake_reg.cert")
+        stake_cert = os.path.join(TEMP_DIR, "stake_reg.cert")
         # Generate stake key registration certificate
         self.load_gov_state()
         
@@ -338,7 +344,10 @@ class CardanoCLI:
             key_arg="--cc-hot-verification-key-file"
         elif role == 'spo':
             key_arg="--cold-verification-key-file"
-        vote_file=os.path.join(KEYS_DIR,"vote_"+vote+"_"+action_tx+'_'+action_tx_index+".vote")
+        else:
+            print("Invalid Role :", role)
+            exit(1)
+        vote_file=os.path.join(TEMP_DIR,"vote_"+vote+"_"+action_tx+'_'+action_tx_index+".vote")
         self.cardano_cli_conway("governance","vote",[
             
             "create",
@@ -354,12 +363,24 @@ class CardanoCLI:
             "--witness-override", "2"
         ],extra_keys=[key.private],raise_error=False)
         process=result.process
-        if 'GovActionsDoNotExist' in process.stderr:
-            print("ERROR: Gov Action doesn't exist on chain : ",action_tx+"#"+action_tx_index)
-            print("Nothing was done on-chain")
-        
+        if process.returncode > 0:
+            if 'GovActionsDoNotExist' in process.stderr:
+                print("ERROR: Gov Action doesn't exist on chain : ",action_tx+"#"+action_tx_index)
+                print("Nothing was done on-chain")
+            elif 'VotersDoNotExist (DRepVoter' in process.stderr:
+                print("ERROR: You are not a Registred Drep")
+                print("Nothing was done on-chain")
+            elif 'DisallowedVoters ((CommitteeVoter' in process.stderr:
+                print("ERROR: You are not a CC Member")
+                print("Nothing was done on-chain")
+            else :
+                print(process.stderr)     
+                print("Nothing was done on-chain")
+        else:
+            print("Submitted :",result.txid)
+   
     def register_drep(self, wallet: Wallet, drep: Key):
-        drep_cert = os.path.join(KEYS_DIR, "drep_reg.cert")
+        drep_cert = os.path.join(TEMP_DIR, "drep_reg.cert")
         # Generate DRep registration certificate
         self.load_gov_state()
         
@@ -404,7 +425,7 @@ class CardanoCLI:
         return self.get_tx_id(tx_raw_file)
     
     def delegate(self,wallet:Wallet,own_drep:Key,drep:str):
-        delegation_cert = os.path.join(KEYS_DIR, "vote_deleg.cert")
+        delegation_cert = os.path.join(TEMP_DIR, "vote_deleg.cert")
 
         if drep == 'abstain':
             delegation=["--always-abstain"]
@@ -429,26 +450,33 @@ class CardanoCLI:
             "--certificate-file", delegation_cert],extra_keys=[wallet.stake_skey],raise_error=False)
         process=result.process
         if(process.returncode!=0):
+
             if 'StakeKeyNotRegisteredDELEG' in process.stderr:
-                print("ERROR: Drep is not registered:",drep)
-            elif 'StakeKeyNotRegisteredDELEG' in process.stderr:
-                print("Your stake key is not registered")
+                print("ERROR: Stake Address is not registered")
                 print("run > gov-cli register stake")
-                print("To register your stake")        
-            else:
+                print("To register your stake")     
+            else: ## Ledger allows delegating to non-existing drep.
                 raise Exception("Process failed "+process.stdout + process.stderr)
         else:
             print("Submitted :",result.txid)
 
     def cc_authorize_hot_key(self,wallet:Wallet,hot_key:Key,cold_key:Key):
 
-        txid=self.build_and_submit(wallet,'cc_hot_key_register',[
+        result:SubmitResult=self.build_and_submit(wallet,'cc_hot_key_register',[
             "--certificate-file",hot_key.id,
             "--witness-override","2"
-        ],extra_keys=[cold_key.private])
+        ],extra_keys=[cold_key.private],raise_error=False)
         
-        print("Submitted :",txid)
+        process=result.process
+        if(process.returncode!=0):
 
+            if 'ConwayCommitteeIsUnknown' in process.stderr:
+                print("CC Cold Key Hash: ",cold_key.id)
+                print("ERROR: Cold Key is not registered as CC Member") 
+            else: ## Ledger allows delegating to non-existing drep.
+                raise Exception("Process failed "+process.stdout + process.stderr)
+        else:
+            print("Submitted :",result.txid)
 
         
     def query_utxos(self, wallet: Wallet):
@@ -456,11 +484,19 @@ class CardanoCLI:
         return utxos
 
     def query_utxos_json(self, wallet: Wallet):
+        
         file_path = os.path.join(KEYS_DIR, 'utxo.json')
         utxos = self.cardano_cli("query", "utxo", ["--address", wallet.address ,"--out-file",file_path], include_network=True, include_socket=True,)
         
         with open(file_path) as f:
             utxos=json.load(f)
+            if len(utxos) ==0:
+                print("Wallet Adddress : ",wallet.address)
+                print("  ERROR: Missing Balance")
+
+                exit(1)
+                
+        
         return utxos
 
 
@@ -559,6 +595,7 @@ def command_handler():
         
     elif command == "wallet":
         store = WalletStore(KEYS_DIR)
+        print("Wallet Store  :",KEYS_DIR)
         try:
             wallet = store.load_wallet()
             print(f"Address       : {wallet.address}")
@@ -573,7 +610,11 @@ def command_handler():
             
         try:
             wallet = store.load_cc_cold_keys()
+            hot_key = store.load_cc_hot_keys()
+
             print(f"CC key Hash   : {wallet.id}")
+            print(f"CC Hot KeyHash: {hot_key.id}")
+
         except:
             print(":: CC keys not generated > gov-cli gen cc")
         
@@ -581,6 +622,7 @@ def command_handler():
     elif command == "register":
         store=WalletStore(KEYS_DIR)
         wallet = store.load_wallet()
+
         if len(sys.argv)>2:
             if sys.argv[2] == "drep":
                 drep=store.load_drep_key()
@@ -595,6 +637,7 @@ def command_handler():
                 print("Invalid option for register \"" + sys.argv[2]+"\". Expected \"drep\" or \"stake\"")
 
         else:
+            print("Registering stake key")
             # Register stake key
             cli.register_stake(wallet)
     elif command == 'delegate':
@@ -604,7 +647,7 @@ def command_handler():
         if len(sys.argv) ==3:
             cli.delegate(wallet,drep,sys.argv[2])
         else:
-            print("Usage:\n   gov-cli delegate [no-confidence|abstain|drep_id]")
+            print("Usage:\n   gov-cli delegate [no-confidence|abstain|drep_id|self]")
 
     elif command == "propose":
         store=WalletStore(KEYS_DIR)
@@ -641,7 +684,6 @@ def command_handler():
             sys.exit(1)
 
         # Query UTXOs for the specified address
-        print("queryutxo")
         wallet = Wallet(payment_vkey=None, payment_skey=None, stake_vkey=None, stake_skey=None, address=address)
         result=cli.query_utxos(wallet)
         print(result)
@@ -679,3 +721,16 @@ def command_handler():
             
     else:
         help()
+
+def check_if_file_exists(*files):
+    existing_files = []
+    for file in files:
+        if os.path.exists(file):
+            existing_files.append(file)
+    
+    if len(existing_files) > 0:
+        print("File Already Exists:")
+        for file in existing_files:
+            print(" -",file)
+        print("Backup and remove them to generate new keys")
+        exit(1)

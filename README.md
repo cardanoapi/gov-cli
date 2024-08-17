@@ -12,6 +12,14 @@ Cli wrapper on top of cardano-cli for governance actions on cardano blockchain
 
 Tutorial : [Quick Start with Gov-Cli](https://cardanoapi.github.io/gov-cli/docs/intro)
 
+### Env Variables
+| **Environment Variable**     | **Description**                        | **Possible Values**                                 |
+|------------------------------|----------------------------------------|----------------------------------------------------|
+| `CARDANO_NODE_SOCKET_PATH`   | Node's socket path                     | (e.g., path to the socket file)                    |
+| `NETWORK`                    | Cardano network                        | `1`, `2`, `3`, `4`, `mainnet`, `preprod`, `sancho`, `preview` |
+| `KEYS_DIR`                   | Where keys are generated and stored   | `$HOME/.cardano/key`                              |
+| `LOG_CLI`                    | Show commands executed in CLI          | `yes`, `no`, `false`                              |
+
 
 ### Installation
 ```
