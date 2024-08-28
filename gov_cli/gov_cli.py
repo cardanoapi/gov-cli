@@ -408,7 +408,27 @@ class CardanoCLI:
         else:
             print(f"DRep registration transaction submitted successfully!\nTx ID: {submit_result.txid}")
     
-        
+    def deregister_drep(self, wallet:Wallet, drep: Key):
+        drep_cert = os.path.join(TEMP_DIR, "drep_retire.cert")
+        # Generate DRep retirement certificate
+        self.load_gov_state()
+        self.cardano_cli_conway("governance", "drep", 
+                        [ "retirement-certificate","--drep-verification-key-file", drep.public, "--deposit-amt",
+                        str(self.gov_state["currentPParams"]["dRepDeposit"])
+                        ,"--out-file", drep_cert])
+        submit_result:SubmitResult=self.build_and_submit(wallet,'drep_reg',
+            ["--witness-override","2", 
+            "--certificate-file", drep_cert]
+            
+        ,raise_error=False,extra_keys=[drep.private])
+        if submit_result.process.returncode != 0 :
+            if "ConwayDRepNotRegistered" in submit_result.process.stderr:
+                print("DRep key is not registered ...")
+                print("Nothing was done on-chain.") 
+            else:
+                raise Exception (f"Process failed \n {submit_result.process.stdout} \n {submit_result.process.stderr}")
+        else: 
+            print(f"DRep retirement transaction submitted successfully!\nTx ID: {submit_result.txid}")
 
     def sign_and_submit(self,wallet:Wallet,tx_raw_file,signed_tx_file,raise_error=True,extra_keys=[])->Optional[SubmitResult]:
         # Sign the transaction
@@ -640,6 +660,15 @@ def command_handler():
             print("Registering stake key")
             # Register stake key
             cli.register_stake(wallet)
+    elif command == "deregister":
+        store=WalletStore(KEYS_DIR)
+        wallet = store.load_wallet()
+        
+        if len(sys.argv)>2: 
+            if sys.argv[2] == "drep":
+                drep=store.load_drep_key()
+                cli.deregister_drep(wallet,drep)                
+        
     elif command == 'delegate':
         store=WalletStore(KEYS_DIR)
         wallet = store.load_wallet()
