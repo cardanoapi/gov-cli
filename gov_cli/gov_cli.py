@@ -317,7 +317,7 @@ class CardanoCLI:
                           str(self.gov_state["currentPParams"]["stakeAddressDeposit"])
                           ,"--out-file", stake_cert], include_network=False, include_socket=False)
         
-        submit_result:SubmitResult=self.build_and_submit(wallet,'drep_reg',
+        submit_result:SubmitResult=self.build_and_submit(wallet,'stake_reg',
             ["--witness-override","2", 
                                 "--certificate-file", stake_cert]
         ,raise_error=False,extra_keys=[wallet.stake_skey])
@@ -335,6 +335,32 @@ class CardanoCLI:
         else:
             print(f"Stake registration transaction submitted successfully! Tx ID: {submit_result.txid}")
 
+    def deregister_stake(self, wallet: Wallet): 
+        stake_cert = os.path.join(TEMP_DIR, "stake_dereg.cert")
+        # Generate stake key de-registration certificate
+        self.load_gov_state()
+        
+        self.cardano_cli_conway("stake-address", "deregistration-certificate",
+                        ["--stake-verification-key-file", wallet.stake_vkey, "--key-reg-deposit-amt",
+                         str(self.gov_state["currentPParams"]["stakeAddressDeposit"])
+                          ,"--out-file", stake_cert], include_network=False, include_socket=False)
+        
+        submit_result:SubmitResult=self.build_and_submit(wallet,'stake_dereg',
+            ["--witness-override","2", 
+                                "--certificate-file", stake_cert]
+        ,raise_error=False,extra_keys=[wallet.stake_skey])
+        
+        # Sign and Submit the transaction
+        process:subprocess.CompletedProcess = submit_result.process
+        result:str=process.stdout
+        if process.returncode != 0 :
+            if "StakeKeyNotRegisteredDELEG" in process.stderr:
+                print("Stake key not registered ...")
+                print("Nothing was done on-chain.")
+            else:
+                raise Exception(f"Process failed \n {result} \n {process.stderr}")
+        else:
+            print(f"Stake de-registration transaction submitted successfully! Tx ID: {submit_result.txid}")
 
     def vote(self,vote,wallet:Wallet,key:Key,role:str,action_tx,action_tx_index):
         
@@ -408,7 +434,27 @@ class CardanoCLI:
         else:
             print(f"DRep registration transaction submitted successfully!\nTx ID: {submit_result.txid}")
     
-        
+    def deregister_drep(self, wallet:Wallet, drep: Key):
+        drep_cert = os.path.join(TEMP_DIR, "drep_retire.cert")
+        # Generate DRep retirement certificate
+        self.load_gov_state()
+        self.cardano_cli_conway("governance", "drep", 
+                        [ "retirement-certificate","--drep-verification-key-file", drep.public, "--deposit-amt",
+                        str(self.gov_state["currentPParams"]["dRepDeposit"])
+                        ,"--out-file", drep_cert])
+        submit_result:SubmitResult=self.build_and_submit(wallet,'drep_reg',
+            ["--witness-override","2", 
+            "--certificate-file", drep_cert]
+            
+        ,raise_error=False,extra_keys=[drep.private])
+        if submit_result.process.returncode != 0 :
+            if "ConwayDRepNotRegistered" in submit_result.process.stderr:
+                print("DRep key is not registered ...")
+                print("Nothing was done on-chain.") 
+            else:
+                raise Exception (f"Process failed \n {submit_result.process.stdout} \n {submit_result.process.stderr}")
+        else: 
+            print(f"DRep retirement transaction submitted successfully!\nTx ID: {submit_result.txid}")
 
     def sign_and_submit(self,wallet:Wallet,tx_raw_file,signed_tx_file,raise_error=True,extra_keys=[])->Optional[SubmitResult]:
         # Sign the transaction
@@ -640,6 +686,22 @@ def command_handler():
             print("Registering stake key")
             # Register stake key
             cli.register_stake(wallet)
+    
+    
+    elif command == "deregister":
+        store=WalletStore(KEYS_DIR)
+        wallet = store.load_wallet()
+        
+        if len(sys.argv)>2: 
+            if sys.argv[2] == "drep":
+                drep=store.load_drep_key()
+                cli.deregister_drep(wallet,drep)  
+        
+            elif sys.argv[2] == "stake":
+                cli.deregister_stake(wallet)
+            else: 
+                print("Invalid option for deregister \"" + sys.argv[2]+"\". Expected \"drep\" or \"stake\"")
+
     elif command == 'delegate':
         store=WalletStore(KEYS_DIR)
         wallet = store.load_wallet()
